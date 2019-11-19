@@ -18,6 +18,7 @@ using Nop.Core.Infrastructure.DependencyManagement;
 using Nop.Core.Redis;
 using Nop.Data;
 using Nop.Data.Data;
+using Nop.Data.Database;
 using Nop.Data.DataProviders;
 using Nop.Services.Affiliates;
 using Nop.Services.Authentication;
@@ -277,6 +278,8 @@ namespace Nop.Web.Framework.Infrastructure
                 else
                     builder.RegisterType<CodeFirstInstallationService>().As<IInstallationService>().InstancePerLifetimeScope();
             }
+
+            builder.RegisterType<MsSqlDatabaseHelper>().Keyed<IDatabaseHelper>(DataProviderType.SqlServer);
 
             //event consumers
             var consumers = typeFinder.FindClassesOfType(typeof(IConsumer<>)).ToList();

@@ -8,6 +8,8 @@ namespace Nop.Data
     /// </summary>
     public partial class ConnectionStringSettings : IConnectionStringSettings
     {
+
+
         /// <summary>
         /// Gets or sets connection string
         /// </summary>

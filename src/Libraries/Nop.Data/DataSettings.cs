@@ -8,7 +8,7 @@ namespace Nop.Data
     /// <summary>
     /// Represents the data settings
     /// </summary>
-    public partial class DataSettings
+    public partial class DataSettings : IDataSettings
     {
         #region Ctor
 

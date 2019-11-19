@@ -1,7 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
 using LinqToDB.Configuration;
-using Nop.Data.Data;
 
 namespace Nop.Data
 {
@@ -30,7 +29,7 @@ namespace Nop.Data
         /// <summary>
         /// Gets name of default data provider configuration
         /// </summary>
-        public string DefaultDataProvider => DataProviderType.SqlServer.ToString();
+        public string DefaultDataProvider => _dataSettings.DataProvider.ToString();
 
         /// <summary>
         /// Gets list of connection configurations

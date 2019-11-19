@@ -24,7 +24,7 @@ namespace Nop.Data
                 switch (dataSettings.DataProvider)
                 {
                     case DataProviderType.SqlServer:
-                        return new MsSqlDataProvider();
+                        return new MsSqlDataProvider(dataSettings.DataConnectionString);
                     default:
                         throw new NopException($"Not supported data provider name: '{dataSettings.DataProvider}'");
                 }

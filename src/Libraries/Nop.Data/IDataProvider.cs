@@ -1,4 +1,5 @@
-﻿using LinqToDB.Data;
+﻿using System.Collections.Generic;
+using LinqToDB.Data;
 using Nop.Core;
 
 namespace Nop.Data
@@ -9,13 +10,6 @@ namespace Nop.Data
     public partial interface IDataProvider
     {
         #region Methods
-
-        void CreateDatabase(string collation, int triesToConnect = 10);
-
-        /// <summary>
-        /// Initialize database
-        /// </summary>
-        void InitializeDatabase();
 
         /// <summary>
         /// Get a support database parameter object (used by stored procedures)
@@ -36,22 +30,6 @@ namespace Nop.Data
         /// <typeparam name="T">Entity</typeparam>
         /// <param name="ident">Identity value</param>
         void SetTableIdent<T>(int ident) where T : BaseEntity;
-
-        /// <summary>
-        /// Creates a backup of the database
-        /// </summary>
-        void BackupDatabase(string fileName);
-
-        /// <summary>
-        /// Restores the database from a backup
-        /// </summary>
-        /// <param name="backupFileName">The name of the backup file</param>
-        void RestoreDatabase(string backupFileName);
-
-        /// <summary>
-        /// Re-index database tables
-        /// </summary>
-        void ReIndexTables();
 
         /// <summary>
         /// Loads the original copy of the entity

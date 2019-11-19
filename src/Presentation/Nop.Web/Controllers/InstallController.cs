@@ -1,8 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Data.SqlClient;
 using System.Linq;
-using System.Threading;
+using Autofac.Features.Indexed;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Nop.Core;
@@ -11,6 +10,7 @@ using Nop.Core.Configuration;
 using Nop.Core.Infrastructure;
 using Nop.Data;
 using Nop.Data.Data;
+using Nop.Data.Database;
 using Nop.Services.Installation;
 using Nop.Services.Plugins;
 using Nop.Services.Security;
@@ -27,151 +27,21 @@ namespace Nop.Web.Controllers
         private readonly IInstallationLocalizationService _locService;
         private readonly INopFileProvider _fileProvider;
         private readonly NopConfig _config;
-
+        private readonly IIndex<DataProviderType, IDatabaseHelper> _databaseHelpers;
         #endregion
 
         #region Ctor
 
-        public InstallController(IInstallationLocalizationService locService,
+        public InstallController(
+            IIndex<DataProviderType, IDatabaseHelper> databaseHelpers,
+            IInstallationLocalizationService locService,
             INopFileProvider fileProvider,
             NopConfig config)
         {
+            _databaseHelpers = databaseHelpers;
             _locService = locService;
             _fileProvider = fileProvider;
             _config = config;
-        }
-
-        #endregion
-
-        #region Utilities
-
-        /// <summary>
-        /// A value indicating whether we use MARS (Multiple Active Result Sets)
-        /// </summary>
-        protected virtual bool UseMars => false;
-
-        /// <summary>
-        /// Checks if the specified database exists, returns true if database exists
-        /// </summary>
-        /// <param name="connectionString">Connection string</param>
-        /// <returns>Returns true if the database exists.</returns>
-        protected virtual bool SqlServerDatabaseExists(string connectionString)
-        {
-            try
-            {
-                //just try to connect
-                using (var conn = new SqlConnection(connectionString))
-                {
-                    conn.Open();
-                }
-
-                return true;
-            }
-            catch
-            {
-                return false;
-            }
-        }
-
-        /// <summary>
-        /// Creates a database on the server.
-        /// </summary>
-        /// <param name="connectionString">Connection string</param>
-        /// <param name="collation">Server collation; the default one will be used if not specified</param>
-        /// <param name="triesToConnect">
-        /// Number of times to try to connect to database. 
-        /// If connection cannot be open, then error will be returned. 
-        /// Pass 0 to skip this validation.
-        /// </param>
-        /// <returns>Error</returns>
-        protected virtual string CreateDatabase(string connectionString, string collation, int triesToConnect = 10)
-        {
-            try
-            {
-                //parse database name
-                var builder = new SqlConnectionStringBuilder(connectionString);
-                var databaseName = builder.InitialCatalog;
-                //now create connection string to 'master' dabatase. It always exists.
-                builder.InitialCatalog = "master";
-                var masterCatalogConnectionString = builder.ToString();
-                var query = $"CREATE DATABASE [{databaseName}]";
-                if (!string.IsNullOrWhiteSpace(collation))
-                    query = $"{query} COLLATE {collation}";
-                using (var conn = new SqlConnection(masterCatalogConnectionString))
-                {
-                    conn.Open();
-                    using (var command = new SqlCommand(query, conn))
-                    {
-                        command.ExecuteNonQuery();
-                    }
-                }
-
-                //try connect
-                if (triesToConnect <= 0) 
-                    return string.Empty;
-
-                //sometimes on slow servers (hosting) there could be situations when database requires some time to be created.
-                //but we have already started creation of tables and sample data.
-                //as a result there is an exception thrown and the installation process cannot continue.
-                //that's why we are in a cycle of "triesToConnect" times trying to connect to a database with a delay of one second.
-                for (var i = 0; i <= triesToConnect; i++)
-                {
-                    if (i == triesToConnect)
-                        throw new Exception("Unable to connect to the new database. Please try one more time");
-
-                    if (!SqlServerDatabaseExists(connectionString))
-                        Thread.Sleep(1000);
-                    else
-                        break;
-                }
-
-                return string.Empty;
-            }
-            catch (Exception ex)
-            {
-                return string.Format(_locService.GetResource("DatabaseCreationError"), ex.Message);
-            }
-        }
-
-        /// <summary>
-        /// Create contents of connection strings used by the SqlConnection class
-        /// </summary>
-        /// <param name="trustedConnection">Avalue that indicates whether User ID and Password are specified in the connection (when false) or whether the current Windows account credentials are used for authentication (when true)</param>
-        /// <param name="serverName">The name or network address of the instance of SQL Server to connect to</param>
-        /// <param name="databaseName">The name of the database associated with the connection</param>
-        /// <param name="username">The user ID to be used when connecting to SQL Server</param>
-        /// <param name="password">The password for the SQL Server account</param>
-        /// <param name="timeout">The connection timeout</param>
-        /// <returns>Connection string</returns>
-        protected virtual string CreateConnectionString(bool trustedConnection,
-            string serverName, string databaseName,
-            string username, string password, int timeout = 0)
-        {
-            var builder = new SqlConnectionStringBuilder
-            {
-                IntegratedSecurity = trustedConnection,
-                DataSource = serverName,
-                InitialCatalog = databaseName
-            };
-
-            if (!trustedConnection)
-            {
-                builder.UserID = username;
-                builder.Password = password;
-            }
-
-            builder.PersistSecurityInfo = false;
-            if (UseMars)
-            {
-                builder.MultipleActiveResultSets = true;
-            }
-
-            if (timeout > 0)
-            {
-                builder.ConnectTimeout = timeout;
-            }
-
-            return builder.ConnectionString;
         }
 
         #endregion
@@ -187,16 +57,16 @@ namespace Nop.Web.Controllers
             {
                 AdminEmail = "admin@yourStore.com",
                 InstallSampleData = false,
-                DatabaseConnectionString = string.Empty,
-                DataProvider = DataProviderType.SqlServer,
+
                 //fast installation service does not support SQL compact
                 DisableSampleDataOption = _config.DisableSampleDataDuringInstallation,
-                SqlAuthenticationType = "sqlauthentication",
-                SqlConnectionInfo = "sqlconnectioninfo_values",
-                SqlServerCreateDatabase = false,
-                UseCustomCollation = false,
-                Collation = "SQL_Latin1_General_CP1_CI_AS"
+                CreateDatabaseIfNotExists = false,
+                ConnectionStringRaw = false,
+                DataProvider = DataProviderType.SqlServer,
+                NopConnectionString = new ConnectionStringModel(),
+                AvailableDataProviders = _locService.GetAvailableProviderTypes()?.ToList()
             };
+
             foreach (var lang in _locService.GetAvailableLanguages())
             {
                 model.AvailableLanguages.Add(new SelectListItem
@@ -216,9 +86,6 @@ namespace Nop.Web.Controllers
             if (DataSettingsManager.DatabaseIsInstalled)
                 return RedirectToRoute("Homepage");
 
-            if (model.DatabaseConnectionString != null)
-                model.DatabaseConnectionString = model.DatabaseConnectionString.Trim();
-
             //prepare language list
             foreach (var lang in _locService.GetAvailableLanguages())
             {
@@ -228,48 +95,11 @@ namespace Nop.Web.Controllers
                     Text = lang.Name,
                     Selected = _locService.GetCurrentLanguage().Code == lang.Code
                 });
+
+                model.AvailableDataProviders = _locService.GetAvailableProviderTypes()?.ToList();
             }
 
             model.DisableSampleDataOption = _config.DisableSampleDataDuringInstallation;
-
-            //SQL Server
-            if (model.DataProvider == DataProviderType.SqlServer)
-            {
-                if (model.SqlConnectionInfo.Equals("sqlconnectioninfo_raw", StringComparison.InvariantCultureIgnoreCase))
-                {
-                    //raw connection string
-                    if (string.IsNullOrEmpty(model.DatabaseConnectionString))
-                        ModelState.AddModelError(string.Empty, _locService.GetResource("ConnectionStringRequired"));
-
-                    try
-                    {
-                        //try to create connection string
-                        var unused = new SqlConnectionStringBuilder(model.DatabaseConnectionString);    
-                    }
-                    catch
-                    {
-                        ModelState.AddModelError(string.Empty, _locService.GetResource("ConnectionStringWrongFormat"));
-                    }
-                }
-                else
-                {
-                    //values
-                    if (string.IsNullOrEmpty(model.SqlServerName))
-                        ModelState.AddModelError(string.Empty, _locService.GetResource("SqlServerNameRequired"));
-                    if (string.IsNullOrEmpty(model.SqlDatabaseName))
-                        ModelState.AddModelError(string.Empty, _locService.GetResource("DatabaseNameRequired"));
-
-                    //authentication type
-                    if (model.SqlAuthenticationType.Equals("sqlauthentication", StringComparison.InvariantCultureIgnoreCase))
-                    {
-                        //SQL authentication
-                        if (string.IsNullOrEmpty(model.SqlServerUsername))
-                            ModelState.AddModelError(string.Empty, _locService.GetResource("SqlServerUsernameRequired"));
-                        if (string.IsNullOrEmpty(model.SqlServerPassword))
-                            ModelState.AddModelError(string.Empty, _locService.GetResource("SqlServerPasswordRequired"));
-                    }
-                }
-            }
 
             //Consider granting access rights to the resource to the ASP.NET request identity. 
             //ASP.NET has a base process identity 
@@ -294,75 +124,35 @@ namespace Nop.Web.Controllers
                     ModelState.AddModelError(string.Empty, string.Format(_locService.GetResource("ConfigureFilePermissions"), CurrentOSUser.FullName, file));
             }
 
-            if (!ModelState.IsValid) 
+            if (!ModelState.IsValid)
                 return View(model);
-
-            //save settings
-            DataSettingsManager.SaveSettings(new DataSettings(model.DataProvider), _fileProvider);
-
-            var dataProvider = EngineContext.Current.Resolve<IDataProvider>();
 
             try
             {
-                var connectionString = string.Empty;
-                if (model.DataProvider == DataProviderType.SqlServer)
+                var databaseHelper = _databaseHelpers[model.DataProvider];
+
+                if (model.ConnectionStringRaw)
+                    databaseHelper.SaveConnectionString(model.ConnectionString);
+                else
+                    databaseHelper.SaveConnectionString(model.NopConnectionString);
+
+                if (model.CreateDatabaseIfNotExists)
                 {
-                    //SQL Server
-
-                    if (model.SqlConnectionInfo.Equals("sqlconnectioninfo_raw", StringComparison.InvariantCultureIgnoreCase))
+                    try
                     {
-                        //raw connection string
-
-                        //we know that MARS option is required when using Entity Framework
-                        //let's ensure that it's specified
-                        var sqlCsb = new SqlConnectionStringBuilder(model.DatabaseConnectionString);
-                        if (UseMars)
-                            sqlCsb.MultipleActiveResultSets = true;
-
-                        connectionString = sqlCsb.ToString();
+                        databaseHelper.CreateDatabase(model.Collation);
                     }
-                    else
+                    catch (Exception ex)
                     {
-                        //values
-                        connectionString = CreateConnectionString(model.SqlAuthenticationType == "windowsauthentication",
-                            model.SqlServerName, model.SqlDatabaseName,
-                            model.SqlServerUsername, model.SqlServerPassword);
-                    }
-
-                    if (model.SqlServerCreateDatabase)
-                    {
-                        if (!SqlServerDatabaseExists(connectionString))
-                        {
-                            //create database
-                            var collation = model.UseCustomCollation ? model.Collation : string.Empty;
-                            try
-                            {
-                                dataProvider.CreateDatabase(collation);
-
-                            }
-                            catch (Exception ex)
-                            {
-                                throw new Exception(string.Format(_locService.GetResource("DatabaseCreationError"), ex.Message));
-                            }
-                        }
-                    }
-                    else
-                    {
-                        //check whether database exists
-                        if (!SqlServerDatabaseExists(connectionString))
-                            throw new Exception(_locService.GetResource("DatabaseNotExists"));
+                        throw new Exception(string.Format(_locService.GetResource("DatabaseCreationError"), ex.Message));
                     }
                 }
-
-                //save settings
-                DataSettingsManager.SaveSettings(new DataSettings
+                else
                 {
-                    DataProvider = model.DataProvider,
-                    DataConnectionString = connectionString
-                }, _fileProvider);
-
-                //initialize database
-                dataProvider.InitializeDatabase();
+                    //check whether database exists
+                    if (!databaseHelper.SqlServerDatabaseExists())
+                        throw new Exception(_locService.GetResource("DatabaseNotExists"));
+                }
 
                 //now resolve installation service
                 var installationService = EngineContext.Current.Resolve<IInstallationService>();
@@ -370,9 +160,6 @@ namespace Nop.Web.Controllers
 
                 if (model.InstallSampleData)
                     installationService.InstallSampleData(model.AdminEmail);
-
-                //reset cache
-                DataSettingsManager.ResetCache();
 
                 //prepare plugins to install
                 var pluginService = EngineContext.Current.Resolve<IPluginService>();
@@ -409,6 +196,7 @@ namespace Nop.Web.Controllers
 
                 //Redirect to home page
                 return RedirectToRoute("Homepage");
+
             }
             catch (Exception exception)
             {
@@ -426,11 +214,6 @@ namespace Nop.Web.Controllers
 
             return View(model);
         }
-
-        //public virtual IActionResult InstallationComplete() 
-        //{ 
-            
-        //}
 
         public virtual IActionResult ChangeLanguage(string language)
         {

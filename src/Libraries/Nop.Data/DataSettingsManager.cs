@@ -98,9 +98,9 @@ namespace Nop.Data
         /// </summary>
         /// <param name="settings">Data settings</param>
         /// <param name="fileProvider">File provider</param>
-        public static void SaveSettings(DataSettings settings, INopFileProvider fileProvider = null)
+        public static void SaveSettings(IDataSettings settings, INopFileProvider fileProvider = null)
         {
-            Singleton<DataSettings>.Instance = settings ?? throw new ArgumentNullException(nameof(settings));
+            Singleton<IDataSettings>.Instance = settings ?? throw new ArgumentNullException(nameof(settings));
 
             fileProvider = fileProvider ?? CommonHelper.DefaultFileProvider;
             var filePath = fileProvider.MapPath(NopDataSettingsDefaults.FilePath);
@@ -109,7 +109,7 @@ namespace Nop.Data
             fileProvider.CreateFile(filePath);
 
             //save data settings to the file
-            var text = JsonConvert.SerializeObject(Singleton<DataSettings>.Instance, Formatting.Indented);
+            var text = JsonConvert.SerializeObject(Singleton<IDataSettings>.Instance, Formatting.Indented);
             fileProvider.WriteAllText(filePath, text, Encoding.UTF8);
         }
 
