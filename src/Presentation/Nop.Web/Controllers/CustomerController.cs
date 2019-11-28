@@ -557,6 +557,7 @@ namespace Nop.Web.Controllers
             }
 
             //If we got this far, something failed, redisplay form
+            model = _customerModelFactory.PreparePasswordRecoveryModel();
             return View(model);
         }
 
