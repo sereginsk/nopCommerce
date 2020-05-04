@@ -1,6 +1,11 @@
 ﻿using Microsoft.AspNetCore;
 using Microsoft.AspNetCore.Hosting;
 
+/// <summary>
+/// admin@decorforsale.ru
+/// fRxP25RzSD4C@7U
+/// </summary>
+
 namespace Nop.Web
 {
     public class Program
