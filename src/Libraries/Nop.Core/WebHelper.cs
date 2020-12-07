@@ -242,7 +242,8 @@ namespace Nop.Core
                 return string.Empty;
 
             //add scheme to the URL
-            var storeHost = $"{(useSsl ? Uri.UriSchemeHttps : Uri.UriSchemeHttp)}{Uri.SchemeDelimiter}{hostHeader.FirstOrDefault()}";
+            // {(useSsl ? Uri.UriSchemeHttps : Uri.UriSchemeHttp)}
+            var storeHost = $"//{hostHeader.FirstOrDefault()}";
 
             //ensure that host is ended with slash
             storeHost = $"{storeHost.TrimEnd('/')}/";
